@@ -213,3 +213,39 @@ STAR_FEED = 3        # stars granted per /feed
 STAR_PET = 2         # stars granted per /pet
 WISH_COST = 15       # stars to make one wish
 DUPE_REFUND = 5      # stars returned when a wish is a duplicate
+
+
+# --------------------------------------------------------------------------
+# Coins  (the per-user cosmetics currency -- earned, never bought)
+# --------------------------------------------------------------------------
+# Distinct from the shared STAR pool: Coins are personal, earned on a daily /
+# engagement cadence, and spent on direct-purchase cosmetics. No randomness,
+# no real money -- a clean, deterministic shop.
+COIN_CALENDAR = [2, 3, 4, 5, 6, 8, 12]  # /checkin day 1->7 payout, then loops
+FORAGE_REWARD = 2        # coins per /forage
+FORAGE_COOLDOWN = 600    # seconds (10 min) between forages, per user
+COIN_PER_LEVEL = 3       # coins to whoever pushes the pet to a new level
+
+
+# --------------------------------------------------------------------------
+# Cosmetic items  (a direct-purchase shop -- you buy the exact item, no pulls)
+# --------------------------------------------------------------------------
+# Rarity sets the PRICE (a save-up-for-it goal), not a draw chance. One item is
+# equipped on the shared pet at a time. Visual layering on the sprite is a later
+# phase -- for now items show as an emoji in /shop and /inventory.
+ITEM_PRICE = {"common": 8, "uncommon": 20, "rare": 60, "legendary": 200}  # coins
+
+ITEMS = {
+    "party_hat":  {"name": "Party Hat",    "rarity": "common",    "emoji": "🎉"},
+    "shades":     {"name": "8-Bit Shades", "rarity": "common",    "emoji": "🕶️"},
+    "scarf":      {"name": "Cozy Scarf",   "rarity": "uncommon",  "emoji": "🧣"},
+    "headphones": {"name": "Headphones",   "rarity": "uncommon",  "emoji": "🎧"},
+    "crown":      {"name": "Tiny Crown",   "rarity": "rare",      "emoji": "👑"},
+    "halo":       {"name": "Halo",         "rarity": "rare",      "emoji": "😇"},
+    "star_aura":  {"name": "Star Aura",    "rarity": "legendary", "emoji": "✨"},
+}
+
+
+def item_price(item_id: str) -> int:
+    """Coin price for an item, derived from its rarity."""
+    return ITEM_PRICE[ITEMS[item_id]["rarity"]]

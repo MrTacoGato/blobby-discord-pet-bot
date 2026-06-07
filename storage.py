@@ -135,7 +135,8 @@ def save_collection(guild_id: int, collection: dict):
 # User
 # --------------------------------------------------------------------------
 def new_user() -> dict:
-    return {"xp_contributed": 0, "last_xp_ts": 0, "last_checkin": None, "streak": 0}
+    return {"xp_contributed": 0, "last_xp_ts": 0, "last_checkin": None,
+            "streak": 0, "coins": 0, "last_forage_ts": 0}
 
 
 def load_user(guild_id: int, user_id: int):

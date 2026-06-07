@@ -325,22 +325,169 @@ async def rename(interaction: discord.Interaction, name: str):
     await interaction.followup.send(embed=e, file=f) if f else await interaction.followup.send(embed=e)
 
 
-@bot.tree.command(name="checkin", description="Daily check-in to build a streak")
+@bot.tree.command(name="checkin", description="Daily check-in -- build a streak and earn 🪙")
 async def checkin(interaction: discord.Interaction):
     await interaction.response.defer()
     gid, uid = interaction.guild_id, interaction.user.id
     user = await _load_user(gid, uid) or storage.new_user()
     today = datetime.now(timezone.utc).date().isoformat()
     statuskey, streak = petlib.check_in(user, today)
+    earned = 0
+    if statuskey != "already":
+        earned = petlib.daily_coins(streak)
+        petlib.grant_coins(user, earned)
     await _save_user(gid, uid, user)
 
+    bonus = f"  (+{earned} 🪙)" if earned else ""
     blurbs = {
-        "first": f"first check-in! streak: **{streak}** 🔥",
-        "extended": f"nice — streak is now **{streak}** 🔥",
+        "first": f"first check-in! streak: **{streak}** 🔥{bonus}",
+        "extended": f"nice — streak is now **{streak}** 🔥{bonus}",
         "already": f"already checked in today. streak: **{streak}** 🔥",
-        "reset": f"welcome back! streak restarted at **{streak}**",
+        "reset": f"welcome back! streak restarted at **{streak}**{bonus}",
     }
-    await interaction.followup.send(blurbs[statuskey])
+    await interaction.followup.send(
+        f"{blurbs[statuskey]}  ·  balance: **{petlib.coins_of(user)}** 🪙")
+
+
+# --------------------------------------------------------------------------
+# Coins economy + the cosmetic shop  (Phase 1: direct purchase, no art layer)
+# --------------------------------------------------------------------------
+def shop_embed(collection, user):
+    e = discord.Embed(
+        title="🛍️ Cosmetic Shop",
+        description=(f"Your balance: **{petlib.coins_of(user)}** 🪙\n"
+                     "Buy with `/buy` — you get the exact item, no surprises."),
+        color=discord.Color(config.EMBED_NEUTRAL),
+    )
+    by_rarity = {}
+    for item_id, name, emoji, rarity, price, owned in petlib.shop_listing(collection):
+        by_rarity.setdefault(rarity, []).append(
+            f"{emoji} **{name}** — {price} 🪙" + ("  ✅" if owned else ""))
+    for rarity in ("common", "uncommon", "rare", "legendary"):
+        if rarity in by_rarity:
+            e.add_field(name=rarity.capitalize(), value="\n".join(by_rarity[rarity]), inline=False)
+    e.set_footer(text="Earn 🪙 with /checkin and /forage")
+    return e
+
+
+async def _item_autocomplete(interaction: discord.Interaction, current: str):
+    cur = current.lower()
+    out = []
+    for item_id, spec in config.ITEMS.items():
+        if cur in item_id or cur in spec["name"].lower():
+            out.append(app_commands.Choice(
+                name=f"{spec['name']} ({config.item_price(item_id)} coins)", value=item_id))
+    return out[:25]
+
+
+@bot.tree.command(name="forage", description="Forage for 🪙 (once every 10 min)")
+async def forage_cmd(interaction: discord.Interaction):
+    await interaction.response.defer()
+    gid, uid = interaction.guild_id, interaction.user.id
+    user = await _load_user(gid, uid) or storage.new_user()
+    ok, reward, wait = petlib.forage(user)
+    if ok:
+        await _save_user(gid, uid, user)
+        await interaction.followup.send(
+            f"🍃 you foraged **+{reward} 🪙**!  ·  balance: **{petlib.coins_of(user)}** 🪙")
+    else:
+        mins = wait // 60 + 1
+        await interaction.followup.send(
+            f"🍃 nothing to forage yet — check back in ~{mins} min.  ·  "
+            f"balance: **{petlib.coins_of(user)}** 🪙")
+
+
+@bot.tree.command(name="shop", description="Browse cosmetics to buy with 🪙")
+async def shop(interaction: discord.Interaction):
+    await interaction.response.defer()
+    gid, uid = interaction.guild_id, interaction.user.id
+    collection = await refresh_collection(gid)
+    user = await _load_user(gid, uid) or storage.new_user()
+    await interaction.followup.send(embed=shop_embed(collection, user))
+
+
+@bot.tree.command(name="buy", description="Buy a cosmetic with 🪙")
+@app_commands.describe(item="Which item to buy")
+@app_commands.autocomplete(item=_item_autocomplete)
+async def buy(interaction: discord.Interaction, item: str):
+    await interaction.response.defer()
+    gid, uid = interaction.guild_id, interaction.user.id
+    collection = await refresh_collection(gid)
+    user = await _load_user(gid, uid) or storage.new_user()
+    result = petlib.buy_item(user, collection, item)
+    if result["result"] == "bought":
+        await _save_user(gid, uid, user)
+        await _save_collection(gid, collection)
+        spec = config.ITEMS[item]
+        await interaction.followup.send(
+            f"{spec['emoji']} bought **{spec['name']}** for {result['price']} 🪙! "
+            f"Equip it with `/equip`.  ·  balance: **{petlib.coins_of(user)}** 🪙")
+    elif result["result"] == "owned":
+        await interaction.followup.send("the server already owns that one — `/equip` it any time.")
+    elif result["result"] == "broke":
+        await interaction.followup.send(
+            f"not enough 🪙 — that's **{result['need']}**, you have **{result['have']}**. "
+            f"Earn more with `/checkin` and `/forage`.")
+    else:
+        await interaction.followup.send("hmm, I don't know that item — check `/shop`.")
+
+
+@bot.tree.command(name="inventory", description="See owned cosmetics and your 🪙")
+async def inventory(interaction: discord.Interaction):
+    await interaction.response.defer()
+    gid, uid = interaction.guild_id, interaction.user.id
+    collection = await refresh_collection(gid)
+    user = await _load_user(gid, uid) or storage.new_user()
+    owned = collection.get("owned_items", [])
+    equipped = collection.get("equipped")
+    e = discord.Embed(
+        title="🎒 Server Wardrobe",
+        description=f"Your balance: **{petlib.coins_of(user)}** 🪙",
+        color=discord.Color(config.EMBED_NEUTRAL),
+    )
+    if owned:
+        lines = []
+        for item_id in owned:
+            spec = config.ITEMS.get(item_id, {"name": item_id, "emoji": "•"})
+            tag = "  ⬅️ equipped" if item_id == equipped else ""
+            lines.append(f"{spec.get('emoji', '•')} **{spec['name']}**{tag}")
+        e.add_field(name=f"Owned ({len(owned)}/{len(config.ITEMS)})",
+                    value="\n".join(lines), inline=False)
+    else:
+        e.add_field(name="Owned", value="nothing yet — visit `/shop`!", inline=False)
+    wearing = config.ITEMS.get(equipped, {}).get("name", "nothing") if equipped else "nothing"
+    e.set_footer(text=f"Blobby is wearing: {wearing}")
+    await interaction.followup.send(embed=e)
+
+
+@bot.tree.command(name="equip", description="Dress Blobby in an owned cosmetic")
+@app_commands.describe(item="Which owned item to equip")
+@app_commands.autocomplete(item=_item_autocomplete)
+async def equip(interaction: discord.Interaction, item: str):
+    await interaction.response.defer()
+    gid = interaction.guild_id
+    collection = await refresh_collection(gid)
+    result = petlib.equip_item(collection, item)
+    if result["result"] == "equipped":
+        await _save_collection(gid, collection)
+        spec = config.ITEMS[item]
+        await interaction.followup.send(
+            f"{spec['emoji']} Blobby is now wearing the **{spec['name']}**! "
+            "*(it'll appear on the portrait in a later update)*")
+    elif result["result"] == "unowned":
+        await interaction.followup.send("the server doesn't own that yet — `/buy` it first.")
+    else:
+        await interaction.followup.send("hmm, I don't know that item — check `/shop`.")
+
+
+@bot.tree.command(name="unequip", description="Take off Blobby's cosmetic")
+async def unequip_cmd(interaction: discord.Interaction):
+    await interaction.response.defer()
+    gid = interaction.guild_id
+    collection = await refresh_collection(gid)
+    petlib.unequip(collection)
+    await _save_collection(gid, collection)
+    await interaction.followup.send("Blobby is fresh-faced again. 🫧")
 
 
 # --------------------------------------------------------------------------
@@ -364,13 +511,17 @@ async def on_message(message: discord.Message):
     levels = petlib.add_xp(pet, config.XP_PASSIVE)
     user["xp_contributed"] = user.get("xp_contributed", 0) + config.XP_PASSIVE
     user["last_xp_ts"] = petlib.now()
+    coins = levels * config.COIN_PER_LEVEL if levels else 0
+    if coins:
+        petlib.grant_coins(user, coins)
     await _save_pet(gid, pet)
     await _save_user(gid, uid, user)
 
     if levels:
         try:
             await message.channel.send(
-                f"✨ all your chatting leveled **{petlib.display_name(pet)}** up to **{pet['level']}**!"
+                f"✨ all your chatting leveled **{petlib.display_name(pet)}** up to "
+                f"**{pet['level']}** — you earned **+{coins} 🪙**!"
             )
         except discord.HTTPException:
             pass

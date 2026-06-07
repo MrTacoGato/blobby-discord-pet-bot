@@ -242,7 +242,8 @@ def bar(value: float, segments: int = 12) -> str:
 # spend it with /wish. Discoveries belong to the whole server.
 
 def new_collection() -> dict:
-    return {"discovered": [], "stars": 0, "wishes_made": 0}
+    return {"discovered": [], "stars": 0, "wishes_made": 0,
+            "owned_items": [], "equipped": None}
 
 
 def combo_key(species: str, color_index: int) -> str:
@@ -313,3 +314,82 @@ def collection_progress(collection: dict):
         got = sum(1 for ci in range(n) if combo_key(name, ci) in found_keys)
         per.append((name, got, n))
     return len(found_keys), config.total_combos(), per
+
+
+# --------------------------------------------------------------------------
+# Coins (per-user) + the cosmetic shop (shared wardrobe, deterministic)
+# --------------------------------------------------------------------------
+# Coins live on a USER# record (personal, earned via /checkin + /forage + level
+# ups). Owned cosmetics + the single equipped item live on the shared COLLECTION
+# record, so the whole server dresses the one pet. Buying spends the buyer's
+# Coins; the item then belongs to the server. No randomness anywhere -- you buy
+# the exact item you want.
+
+def coins_of(user: dict) -> int:
+    return user.get("coins", 0)
+
+
+def grant_coins(user: dict, amount: int) -> int:
+    user["coins"] = coins_of(user) + amount
+    return user["coins"]
+
+
+def daily_coins(streak: int) -> int:
+    """Coins for a check-in on the given (1-based) streak day; loops weekly."""
+    cal = config.COIN_CALENDAR
+    return cal[(max(1, streak) - 1) % len(cal)]
+
+
+def forage(user: dict, t: float | None = None):
+    """Free coin trickle on a cooldown. Returns (ok, reward, wait_seconds)."""
+    if t is None:
+        t = now()
+    remaining = config.FORAGE_COOLDOWN - (t - user.get("last_forage_ts", 0))
+    if remaining > 0:
+        return False, 0, int(remaining)
+    user["last_forage_ts"] = t
+    grant_coins(user, config.FORAGE_REWARD)
+    return True, config.FORAGE_REWARD, 0
+
+
+def owns_item(collection: dict, item_id: str) -> bool:
+    return item_id in collection.get("owned_items", [])
+
+
+def buy_item(user: dict, collection: dict, item_id: str) -> dict:
+    """Spend the buyer's Coins to add a cosmetic to the shared wardrobe."""
+    if item_id not in config.ITEMS:
+        return {"result": "unknown"}
+    if owns_item(collection, item_id):
+        return {"result": "owned", "item": item_id}
+    price = config.item_price(item_id)
+    if coins_of(user) < price:
+        return {"result": "broke", "need": price, "have": coins_of(user)}
+    user["coins"] = coins_of(user) - price
+    collection.setdefault("owned_items", []).append(item_id)
+    return {"result": "bought", "item": item_id, "price": price}
+
+
+def equip_item(collection: dict, item_id: str) -> dict:
+    if item_id not in config.ITEMS:
+        return {"result": "unknown"}
+    if not owns_item(collection, item_id):
+        return {"result": "unowned", "item": item_id}
+    collection["equipped"] = item_id
+    return {"result": "equipped", "item": item_id}
+
+
+def unequip(collection: dict) -> dict:
+    had = collection.get("equipped")
+    collection["equipped"] = None
+    return {"result": "unequipped", "item": had}
+
+
+def shop_listing(collection: dict):
+    """Rows for /shop: (item_id, name, emoji, rarity, price, owned)."""
+    rows = []
+    for item_id, spec in config.ITEMS.items():
+        rows.append((item_id, spec["name"], spec.get("emoji", "•"),
+                     spec["rarity"], config.item_price(item_id),
+                     owns_item(collection, item_id)))
+    return rows
