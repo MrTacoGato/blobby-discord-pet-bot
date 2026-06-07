@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blobby the Blob — Server Collection</title>
+<style>
+  :root {
+    --gb-shell: #c9c4bd; --gb-shell-dark: #a8a39b; --gb-screen-bezel: #5a5e52;
+    --gb-screen: #9bbc0f; --gb-screen-grid: #8bac0f; --gb-ink: #0f380f; --gb-ink-soft: #306230;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; min-height: 100%;
+    background: radial-gradient(circle at 50% 20%, #2c2f26, #15170f 70%);
+    font-family: "Courier New", monospace; color: var(--gb-ink);
+    display: flex; justify-content: center; align-items: flex-start; padding: 28px 12px 40px;
+  }
+  .gameboy {
+    width: 440px; max-width: 100%;
+    background: linear-gradient(160deg, var(--gb-shell), var(--gb-shell-dark));
+    border-radius: 18px 18px 60px 18px; padding: 22px 22px 30px;
+    box-shadow: 0 18px 40px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.5), inset 0 -4px 8px rgba(0,0,0,.18);
+  }
+  .brand { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 2px; color: #7a766e; text-transform: uppercase; margin-bottom: 8px; }
+  .screen-bezel { background: var(--gb-screen-bezel); border-radius: 10px 10px 28px 10px; padding: 16px 20px 20px; box-shadow: inset 0 3px 10px rgba(0,0,0,.55); }
+  .screen {
+    background: var(--gb-screen);
+    background-image: linear-gradient(rgba(15,56,15,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(15,56,15,.05) 1px, transparent 1px);
+    background-size: 4px 4px; border: 2px solid var(--gb-ink); border-radius: 4px; padding: 12px 12px 16px; image-rendering: pixelated;
+  }
+  .nameplate { text-align: center; margin-bottom: 8px; }
+  .nameplate .title { font-weight: bold; font-size: 19px; letter-spacing: 1px; color: var(--gb-ink); text-shadow: 1px 1px 0 var(--gb-screen-grid); }
+  .nameplate .subtitle { font-size: 10px; letter-spacing: 3px; margin-top: 2px; color: var(--gb-ink-soft); text-transform: uppercase; }
+  .nameplate .divider { margin: 7px auto 0; width: 80%; border-bottom: 2px dashed var(--gb-ink-soft); opacity: .5; }
+  .stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 2px; }
+  .stage canvas { width: 116px; height: 116px; image-rendering: pixelated; background: rgba(15,56,15,.06); border: 1px solid rgba(15,56,15,.25); }
+  .floaties { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+  .floatie { position: absolute; font-size: 16px; animation: rise 900ms ease-out forwards; }
+  @keyframes rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-46px); opacity: 0; } }
+  .meters { margin-top: 8px; font-size: 10px; letter-spacing: 1px; color: var(--gb-ink); }
+  .meter-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; text-transform: uppercase; }
+  .meter-row .lbl { width: 64px; }
+  .meter-row .bar { letter-spacing: -1px; }
+  .stat-line { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--gb-ink); margin-top: 6px; }
+  .controls { display: flex; justify-content: center; align-items: stretch; gap: 10px; margin-top: 20px; }
+  .btn {
+    flex: 1; font-family: inherit; font-weight: bold; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    color: #fff; border: none; border-radius: 16px; padding: 12px 8px; cursor: pointer; transition: transform .05s ease, box-shadow .05s ease;
+  }
+  .btn .sub { display: block; font-size: 8px; opacity: .85; margin-top: 2px; letter-spacing: 0; }
+  .btn.feed { background: #4f7c2f; box-shadow: 0 5px 0 #34511f; }
+  .btn.pet  { background: #2f5c7c; box-shadow: 0 5px 0 #1f3f51; }
+  .btn.wish { background: #7c2f6b; box-shadow: 0 5px 0 #511f47; }
+  .btn:active { transform: translateY(4px); }
+  .btn.feed:active { box-shadow: 0 1px 0 #34511f; }
+  .btn.pet:active  { box-shadow: 0 1px 0 #1f3f51; }
+  .btn.wish:active { box-shadow: 0 1px 0 #511f47; }
+  .btn:disabled { opacity: .5; cursor: default; transform: none; }
+  .album-wrap { margin-top: 14px; background: var(--gb-screen-bezel); border-radius: 10px; padding: 12px 14px 14px; box-shadow: inset 0 3px 10px rgba(0,0,0,.4); }
+  .album-head { display: flex; justify-content: space-between; align-items: baseline; color: #d7dcc4; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+  .album { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .slot { position: relative; }
+  .slot canvas { width: 100%; aspect-ratio: 1 / 1; image-rendering: pixelated; background: #34382d; border: 1px solid #20241b; border-radius: 3px; }
+  .slot.is-new::after { content: "NEW"; position: absolute; top: -6px; right: -4px; background: #e0b020; color: #3a2a00; font-size: 7px; font-weight: bold; padding: 1px 3px; border-radius: 3px; letter-spacing: 0; }
+  .toast { text-align: center; font-size: 10px; letter-spacing: 1px; color: var(--gb-ink-soft); text-transform: uppercase; margin-top: 10px; min-height: 12px; }
+</style>
+</head>
+<body>
+  <div class="gameboy">
+    <div class="brand"><span>Pet&nbsp;Bot&nbsp;Color</span><span>👥 shared · up to 10</span></div>
+    <div class="screen-bezel">
+      <div class="screen">
+        <div class="nameplate">
+          <div class="title">Blobby the Blob</div>
+          <div class="subtitle" id="species-label">species: blob</div>
+          <div class="divider"></div>
+        </div>
+        <div class="stage">
+          <canvas id="sprite" width="64" height="64"></canvas>
+          <div class="floaties" id="floaties"></div>
+        </div>
+        <div class="meters">
+          <div class="meter-row"><span class="lbl">🍎 hunger</span><span class="bar" id="bar-hunger"></span></div>
+          <div class="meter-row"><span class="lbl">😊 happy</span><span class="bar" id="bar-happy"></span></div>
+          <div class="meter-row"><span class="lbl">💛 bond</span><span class="bar" id="bar-bond"></span></div>
+        </div>
+        <div class="stat-line"><span id="level-label">lvl 1</span><span id="stars-label">⭐ 20 (server)</span></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn feed" id="feed">🍎 Feed<span class="sub">+food · +3⭐</span></button>
+      <button class="btn pet" id="pet">✋ Pet<span class="sub">+happy · +2⭐</span></button>
+      <button class="btn wish" id="wish">🎁 Wish<span class="sub">15⭐ · collect</span></button>
+    </div>
+    <div class="album-wrap">
+      <div class="album-head"><span>Server Collection</span><span id="album-count">1 / 30</span></div>
+      <div class="album" id="album"></div>
+    </div>
+    <div class="toast" id="toast">shared with your whole server — feed &amp; pet to earn ⭐</div>
+  </div>
+
+<script>
+/* ----------------------------------------------------------------------
+   Blobby the Blob — shared server collection demo (mirrors the bot).
+   FEED / PET earn stars into ONE pool the whole server shares; WISH spends
+   stars to pull a random species x color into the shared Collection (30
+   total). No death, ever. Duplicates refund stars. Rare species (lower
+   rarity weight) show up in wishes less often.
+   Pixel codes: 0 empty,1 body,2 highlight,3 shadow,4 outline,5 eye-white,
+                6 pupil,7 mouth.
+---------------------------------------------------------------------- */
+
+const SPECIES = [
+  { name:"blob",  set:"verdant", rarity:5, hues:[85,120,150,170,100], colorNames:["lime","green","teal","jade","fern"],
+    grid:["0000000000000000","0000044444000000","0000400000440000","0004022211040000","0040221111104000","0040211111104000","0402111111110400","0402151151110400","0402156156110400","0402111111110400","0402117777110400","0040211111104000","0040221111304000","0004032223040000","0000403333400000","0000044444000000"] },
+  { name:"slime", set:"tidal", rarity:5, hues:[195,215,235,255,225], colorNames:["cyan","azure","blue","indigo","cobalt"],
+    grid:["0000000440000000","0000004224000000","0000042112400000","0000421111240000","0004211111124000","0042111111112400","0421111111111240","0421151151112400","0421156156111240","0421111111111240","0421117777111240","0421111111111240","0042111111112400","0004211111124000","0004222222224000","0000444444440000"] },
+  { name:"ember", set:"molten", rarity:5, hues:[2,18,30,42,10], colorNames:["red","vermilion","orange","amber","ruby"],
+    grid:["0000000440000000","0000004224000000","0000042112400000","0000421221240000","0004212112124000","0042121111212400","0421211111121240","4212111111111214","4121511511111124","4211561561111124","0421111111111240","0042111111112400","0004211111124000","0000421111240000","0000042112400000","0000000440000000"] },
+  { name:"spark", set:"sunbeam", rarity:3, hues:[45,55,38,60,50], colorNames:["gold","lemon","honey","flax","marigold"],
+    grid:["0000040000400000","0000040000400000","0000044004400000","0000004224000000","0000042112400000","0004211111124000","0042111111112400","0421111111111240","0421151151112400","0421156156111240","0421111111111240","0421117777111240","0042111111112400","0004211111124000","0004222222224000","0000444444440000"] },
+  { name:"wisp",  set:"spectral", rarity:3, hues:[280,300,320,340,265], colorNames:["violet","orchid","fuchsia","rose","plum"],
+    grid:["0000044444000000","0000422222400000","0004221112240000","0042211111224000","0421111111112400","0421511511112400","0421561561112400","0421111111112400","0421117711112400","0421111111112400","0421111111112400","0421111111112400","0421111111112400","0421111111112400","0420420420420400","0040040040040000"] },
+  { name:"frost", set:"glacier", rarity:2, hues:[185,195,200,172,196], colorNames:["ice","sky","frost","mint","aqua"],
+    grid:["0000000000000000","0000044000044000","0000422004422400","0004221442211400","0042211111111240","0421111111111124","0421151111511124","4211161111611124","4211111111111124","4211117777111124","4211111111111124","0421111111111240","0042111111112400","0004222222224000","0000444444440000","0000000000000000"] },
+];
+
+const GRID = 16, WISH_COST = 15, DUPE_REFUND = 5, COLORS_PER = 5;
+
+const game = {
+  si: 0, ci: 0,
+  hunger: 70, happy: 70, bond: 10,
+  level: 1, xp: 0, stars: 20,
+  found: new Set(),
+};
+
+function ramp(hue, opts) {
+  opts = opts || {};
+  if (opts.silhouette) return { "1":"#5a5e4c","2":"#6b6f5b","3":"#494c3d","4":"#34382d","5":"#5a5e4c","6":"#34382d","7":"#494c3d" };
+  const s = opts.sat || 65;
+  return {
+    "1": `hsl(${hue}, ${s}%, 55%)`, "2": `hsl(${hue}, ${Math.min(s+10,90)}%, 72%)`,
+    "3": `hsl(${hue}, ${s}%, 38%)`, "4": `hsl(${hue}, ${s}%, 22%)`,
+    "5": "#e8f0c8", "6": "#0f380f", "7": `hsl(${hue}, ${s}%, 28%)`,
+  };
+}
+function drawSprite(cv, si, ci, opts) {
+  const sp = SPECIES[si], scale = cv.width / GRID;
+  const ctx = cv.getContext("2d"); ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const pal = ramp(sp.hues[ci], opts);
+  for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+    const k = sp.grid[y][x]; if (k === "0") continue;
+    ctx.fillStyle = pal[k] || pal["1"];
+    ctx.fillRect(x * scale, y * scale, scale, scale);
+  }
+}
+function bar(v, n) { n = n || 10; const f = Math.round(v / 100 * n); return "█".repeat(f) + "░".repeat(n - f); }
+const clamp = v => Math.max(0, Math.min(100, v));
+
+function weightedSpecies() {
+  const pool = [];
+  SPECIES.forEach((s, i) => { for (let k = 0; k < s.rarity; k++) pool.push(i); });
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function render() {
+  const sp = SPECIES[game.si];
+  document.getElementById("species-label").textContent = "species: " + sp.name;
+  drawSprite(document.getElementById("sprite"), game.si, game.ci, { sat: 68 });
+  document.getElementById("bar-hunger").textContent = bar(game.hunger);
+  document.getElementById("bar-happy").textContent = bar(game.happy);
+  document.getElementById("bar-bond").textContent = bar(game.bond);
+  document.getElementById("level-label").textContent = "lvl " + game.level;
+  document.getElementById("stars-label").textContent = "⭐ " + game.stars + " (server)";
+  document.getElementById("wish").disabled = game.stars < WISH_COST;
+  renderAlbum();
+}
+function renderAlbum() {
+  const album = document.getElementById("album");
+  if (!album.dataset.built) {
+    for (let si = 0; si < SPECIES.length; si++) for (let ci = 0; ci < COLORS_PER; ci++) {
+      const slot = document.createElement("div");
+      slot.className = "slot"; slot.id = "slot-" + si + "-" + ci;
+      const cv = document.createElement("canvas"); cv.width = 48; cv.height = 48;
+      slot.appendChild(cv); album.appendChild(slot);
+    }
+    album.dataset.built = "1";
+  }
+  let count = 0;
+  for (let si = 0; si < SPECIES.length; si++) for (let ci = 0; ci < COLORS_PER; ci++) {
+    const has = game.found.has(si + "-" + ci);
+    drawSprite(document.querySelector("#slot-" + si + "-" + ci + " canvas"), si, ci, has ? { sat: 62 } : { silhouette: true });
+    if (has) count++;
+  }
+  document.getElementById("album-count").textContent = count + " / " + (SPECIES.length * COLORS_PER);
+}
+function floatie(txt) {
+  const box = document.getElementById("floaties");
+  const el = document.createElement("div"); el.className = "floatie"; el.textContent = txt;
+  el.style.left = (30 + Math.random() * 60) + "%"; el.style.top = "55%";
+  box.appendChild(el); setTimeout(() => el.remove(), 900);
+}
+function toast(m) { document.getElementById("toast").textContent = m; }
+function gainXp(n) { game.xp += n; while (game.xp >= game.level * 12) { game.xp -= game.level * 12; game.level++; toast("level up! now lvl " + game.level); } }
+function markNew(si, ci) { const s = document.getElementById("slot-" + si + "-" + ci); if (s) { s.classList.add("is-new"); setTimeout(() => s.classList.remove("is-new"), 2200); } }
+
+function feed() { game.hunger = clamp(game.hunger + 22); game.bond = clamp(game.bond + 4); game.stars += 3; gainXp(5); floatie("🍎"); toast("munch! +3 ⭐ to the server"); render(); }
+function pet()  { game.happy  = clamp(game.happy + 20);  game.bond = clamp(game.bond + 5); game.stars += 2; gainXp(4); floatie("💛"); toast("happy blob! +2 ⭐ to the server"); render(); }
+function wish() {
+  if (game.stars < WISH_COST) return;
+  game.stars -= WISH_COST;
+  const si = weightedSpecies(), ci = Math.floor(Math.random() * COLORS_PER);
+  const key = si + "-" + ci, label = SPECIES[si].colorNames[ci] + " " + SPECIES[si].name;
+  if (game.found.has(key)) { game.stars += DUPE_REFUND; floatie("✨"); toast("duplicate " + label + " → +" + DUPE_REFUND + " ⭐ back"); render(); }
+  else { game.found.add(key); floatie("🎉"); toast("NEW! the server found a " + label + "!"); render(); markNew(si, ci); }
+}
+
+document.getElementById("feed").addEventListener("click", feed);
+document.getElementById("pet").addEventListener("click", pet);
+document.getElementById("wish").addEventListener("click", wish);
+
+game.si = Math.floor(Math.random() * SPECIES.length);
+game.ci = Math.floor(Math.random() * COLORS_PER);
+game.found.add(game.si + "-" + game.ci);
+render();
+</script>
+</body>
+</html>

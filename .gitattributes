@@ -1,0 +1,9 @@
+# Normalize line endings to LF on commit, regardless of contributor OS.
+* text=auto eol=lf
+
+# Sprite art is binary: never apply EOL conversion.
+*.png binary
+
+# Keep the language bar focused on the Python app: don't count the
+# sprite-preview page (a one-off design tool) as project source.
+docs/blobby_sprites.html linguist-documentation

@@ -1,0 +1,37 @@
+# ─── Secrets / environment ──────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# ─── DynamoDB Local (if you persist data to disk) ───────────────────────────
+dynamodb-data/
+
+# ─── Tooling / coverage ─────────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ─── OS / editor cruft ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+.idea/
+.vscode/
