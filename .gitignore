@@ -35,3 +35,6 @@ Thumbs.db
 *.bak
 .idea/
 .vscode/
+
+# ─── Local planning docs (kept out of the public repo) ───
+plans/

@@ -3,12 +3,12 @@
 A Tamagotchi-style **shared pet** that an entire Discord server raises together. Everyone's care adds up into one creature and one shared collection — feed it, play with it, collect 30 pixel-art species, and keep it alive. Built in Python on `discord.py` with persistent state in AWS DynamoDB.
 
 <p align="center">
-  <img src="sprites/blob_0_lime.png" width="72" alt="blob">
-  <img src="sprites/slime_1_azure.png" width="72" alt="slime">
-  <img src="sprites/ember_0_red.png" width="72" alt="ember">
-  <img src="sprites/spark_0_gold.png" width="72" alt="spark">
-  <img src="sprites/wisp_0_violet.png" width="72" alt="wisp">
-  <img src="sprites/frost_2_frost.png" width="72" alt="frost">
+  <img src="sprites/blob_0_lime.gif" width="72" alt="blob">
+  <img src="sprites/slime_1_azure.gif" width="72" alt="slime">
+  <img src="sprites/ember_0_red.gif" width="72" alt="ember">
+  <img src="sprites/spark_0_gold.gif" width="72" alt="spark">
+  <img src="sprites/wisp_0_violet.gif" width="72" alt="wisp">
+  <img src="sprites/frost_2_frost.gif" width="72" alt="frost">
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@ A Tamagotchi-style **shared pet** that an entire Discord server raises together.
 - **A shared gacha collection.** `/feed` and `/pet` pour ⭐ into one server-wide pool; `/wish` spends stars to pull a random species × color into a shared album of **30** collectibles, with rarity weights and duplicate refunds.
 - **Stateless, "settle-on-read" decay.** Needs decay from a single timestamp computed at read time — no cron, no background scheduler. The bot can restart or sleep for a week and the pet's state is always correct.
 - **Gentle, forgiving death.** No "die" button. Blobby only passes after ~15 days of *total* neglect, then a fresh random pet hatches and the collection carries over untouched.
-- **Pre-baked pixel art.** 30 Game Boy-style sprites are rendered once with Pillow and committed; the bot just attaches the PNGs at runtime (no image library in the hot path).
+- **Animated glow art.** 30 Game Boy-style creatures are pre-baked as **animated GIFs** — an inner light core, soft bloom, idle bob, and drifting motes — and committed; the bot just attaches them at runtime (no image library in the hot path).
 - **Production-minded.** Single-table DynamoDB, async-safe AWS calls, Dockerized, and 12-factor secrets (env locally, AWS SSM Parameter Store in production).
 
 ## How it plays
@@ -52,7 +52,7 @@ There are **6 species × 5 colors = 30** collectibles. Some species are rarer th
 | Language | Python 3.10+ |
 | Discord | [`discord.py`](https://discordpy.readthedocs.io/) 2.3+ (slash commands via `app_commands`, message-content intent for passive XP) |
 | Persistence | AWS DynamoDB (single-table) via `boto3`; works against **DynamoDB Local** for development |
-| Art | Pillow — renders 16×16 pixel grids into transparent PNGs |
+| Art | Pillow + numpy — bake 16×16 pixel creatures into **animated glow GIFs** (dev-only) |
 | Config / secrets | `python-dotenv` locally; AWS SSM Parameter Store in production |
 | Packaging | Docker (`python:3.12-slim`) |
 
@@ -83,7 +83,7 @@ Keying the collection by **guild** (not user) is what makes the album and star p
 
 **Async-safe AWS.** `boto3` is synchronous, so every call is dispatched with `asyncio.to_thread(...)` to keep the Discord event loop responsive.
 
-**Sprites as build artifacts.** `sprites.py` bakes all 30 species × color PNGs from the same pixel grids and Game Boy palettes as [`docs/blobby_sprites.html`](docs/blobby_sprites.html). They're committed to `sprites/`, so Pillow is a **dev-only** dependency — the running bot never imports it.
+**Sprites as build artifacts.** `sprites.py` bakes all 30 species × color creatures into **animated glow GIFs** (inner light core, bloom, idle bob, drifting motes) from the same pixel grids and Game Boy palettes as [`docs/blobby_sprites.html`](docs/blobby_sprites.html). They're committed to `sprites/`, so **Pillow + numpy are dev-only** — the running bot never imports them, it just attaches the finished GIFs.
 
 ## Project structure
 
@@ -93,10 +93,10 @@ Keying the collection by **guild** (not user) is what makes the album and star p
 ├── pet.py                 # Pure game logic: decay, XP, gacha, death/respawn
 ├── storage.py             # DynamoDB persistence (boto3, single-table)
 ├── config.py              # All tuning knobs (species, rates, economy, pacing)
-├── sprites.py             # Pixel-art renderer (Pillow) → bakes sprites/*.png
-├── sprites/               # 30 pre-rendered species × color PNGs (committed)
+├── sprites.py             # Glow renderer (Pillow+numpy) → bakes sprites/*.gif
+├── sprites/               # 30 animated glow GIFs (+ static PNGs), committed
 ├── requirements.txt       # Runtime deps: discord.py, boto3, python-dotenv
-├── requirements-dev.txt   # Pillow — only to regenerate sprite art
+├── requirements-dev.txt   # Pillow + numpy — only to regenerate sprite art
 ├── Dockerfile             # Container image for deployment
 ├── .env.example           # Copy to .env and fill in your token + server ID
 └── docs/

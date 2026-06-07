@@ -9,8 +9,9 @@ species+color into the shared Collection. There is no manual "die" button --
 Blobby only passes after ~15 days of total neglect (config.DEATH_GRACE_HOURS),
 after which a fresh random pet hatches and the collection carries over.
 
-Sprites: each species+color is a pre-baked PNG in sprites/ (run sprites.py to
-generate). The bot attaches the right file to status / wish / death embeds.
+Sprites: each species+color is a pre-baked animated glow GIF in sprites/ (run
+sprites.py to generate). The bot just attaches the right file to status / wish /
+death embeds; Pillow + numpy are dev-only, never imported at runtime.
 """
 
 import asyncio
@@ -105,9 +106,9 @@ async def refresh_pet(gid):
 # --------------------------------------------------------------------------
 # Sprite attachments
 # --------------------------------------------------------------------------
-def sprite_file(species, color_index, as_name="sprite.png"):
-    """A discord.File for a combo's PNG, or None if the art isn't built yet."""
-    path = sprites.sprite_path(species, color_index)
+def sprite_file(species, color_index, as_name="sprite.gif"):
+    """A discord.File for a combo's animated glow GIF, or None if art isn't built yet."""
+    path = sprites.anim_path(species, color_index)
     try:
         return discord.File(path, filename=as_name)
     except (FileNotFoundError, OSError):
@@ -143,7 +144,7 @@ def pet_embed(pet, collection=None):
     color_name, _ = petlib.color_of(pet)
     f = sprite_file(pet["species"], pet["color_index"])
     if f is not None:
-        e.set_thumbnail(url="attachment://sprite.png")
+        e.set_thumbnail(url="attachment://sprite.gif")
     e.set_footer(text=f"generation {pet['generation']} · {pet['species']} · {color_name}")
     return e, f
 
@@ -180,9 +181,9 @@ def wish_embed(result):
             ),
             color=discord.Color(color),
         )
-    f = sprite_file(result["species"], result["color_index"], as_name="wish.png")
+    f = sprite_file(result["species"], result["color_index"], as_name="wish.gif")
     if f is not None:
-        e.set_image(url="attachment://wish.png")
+        e.set_image(url="attachment://wish.gif")
     return e, f
 
 
@@ -200,7 +201,7 @@ def death_embed(dead, new):
     )
     f = sprite_file(new["species"], new["color_index"])
     if f is not None:
-        e.set_thumbnail(url="attachment://sprite.png")
+        e.set_thumbnail(url="attachment://sprite.gif")
     e.set_footer(text=f"now on generation {new['generation']}")
     return e, f
 

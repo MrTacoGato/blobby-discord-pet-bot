@@ -1,7 +1,8 @@
 # Development-only dependencies.
 #
-# Pillow is needed ONLY to (re)generate the pixel-art sprite PNGs with
-# `python sprites.py`. The bot never imports Pillow at runtime — it just
-# attaches the pre-baked files in sprites/. Install with:
+# Pillow + numpy are needed ONLY to (re)generate the animated glow sprites with
+# `python sprites.py`. The bot never imports them at runtime — it just attaches
+# the pre-baked GIFs in sprites/. Install with:
 #   pip install -r requirements-dev.txt
 Pillow>=10.0.0
+numpy>=1.24.0
