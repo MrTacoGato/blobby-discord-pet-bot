@@ -127,42 +127,42 @@ import random
 # species fill the album quickly; rare ones are the chase.
 SPECIES = {
     "blob": {  # round classic
-        "set": "verdant", "rarity": 5,
+        "display": "Mosskin", "set": "verdant", "rarity": 5,
         "colors": [
             ("lime", 0x99D742), ("green", 0x42D742), ("teal", 0x42D78C),
             ("jade", 0x42D7BE), ("fern", 0x73D742),
         ],
     },
     "slime": {  # droplet
-        "set": "tidal", "rarity": 5,
+        "display": "Echo", "set": "tidal", "rarity": 5,
         "colors": [
             ("cyan", 0x42B2D7), ("azure", 0x4280D7), ("blue", 0x424ED7),
             ("indigo", 0x6742D7), ("cobalt", 0x4267D7),
         ],
     },
     "ember": {  # crystal
-        "set": "molten", "rarity": 5,
+        "display": "Cinder", "set": "molten", "rarity": 5,
         "colors": [
             ("red", 0xD74742), ("vermilion", 0xD76E42), ("orange", 0xD78C42),
             ("amber", 0xD7AA42), ("ruby", 0xD75B42),
         ],
     },
     "spark": {  # antenna sprite
-        "set": "sunbeam", "rarity": 3,
+        "display": "Static", "set": "sunbeam", "rarity": 3,
         "colors": [
             ("gold", 0xD7B242), ("lemon", 0xD7CA42), ("honey", 0xD7A042),
             ("flax", 0xD7D742), ("marigold", 0xD7BE42),
         ],
     },
     "wisp": {  # ghost
-        "set": "spectral", "rarity": 3,
+        "display": "Phantom", "set": "spectral", "rarity": 3,
         "colors": [
             ("violet", 0xA542D7), ("orchid", 0xD742D7), ("fuchsia", 0xD742A5),
             ("rose", 0xD74273), ("plum", 0x8042D7),
         ],
     },
     "frost": {  # cloud (rare)
-        "set": "glacier", "rarity": 2,
+        "display": "Phosphor", "set": "glacier", "rarity": 2,
         "colors": [
             ("ice", 0x42CAD7), ("sky", 0x42B2D7), ("frost", 0x42A5D7),
             ("mint", 0x42D7C3), ("aqua", 0x42AFD7),
@@ -171,6 +171,11 @@ SPECIES = {
 }
 
 SPECIES_NAMES = list(SPECIES.keys())
+
+
+def species_name(species: str) -> str:
+    """User-facing display name (e.g. 'Mosskin'); falls back to the key."""
+    return SPECIES.get(species, {}).get("display", species.title())
 
 DEAD_COLOR = 0x888780  # gray (legacy; unused while DEATHS_ENABLED is False)
 EMBED_NEUTRAL = 0x5A5E52  # Game Boy bezel gray, used for the collection embed

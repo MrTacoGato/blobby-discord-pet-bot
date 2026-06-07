@@ -220,7 +220,7 @@ def color_of(pet: dict):
 
 
 def display_name(pet: dict) -> str:
-    return pet["name"] if pet.get("name") else f"a nameless {pet['species']}"
+    return pet["name"] if pet.get("name") else f"a nameless {config.species_name(pet['species'])}"
 
 
 def bar(value: float, segments: int = 12) -> str:

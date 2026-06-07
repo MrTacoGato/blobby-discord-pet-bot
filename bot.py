@@ -161,7 +161,7 @@ def pet_embed(pet, collection=None):
     f = sprite_file(pet["species"], pet["color_index"], item_id=equipped)
     if f is not None:
         e.set_thumbnail(url="attachment://sprite.gif")
-    e.set_footer(text=f"generation {pet['generation']} · {pet['species']} · {color_name}")
+    e.set_footer(text=f"generation {pet['generation']} · {config.species_name(pet['species'])} · {color_name}")
     return e, f
 
 
@@ -178,7 +178,7 @@ def wish_embed(result):
         return e, None
 
     _, color = config.color_for(result["species"], result["color_index"])
-    label = f"{result['color']} {result['species']}"
+    label = f"{result['color']} {config.species_name(result['species'])}"
     if result["result"] == "new":
         e = discord.Embed(
             title=f"🎉 NEW! a {label}",
@@ -209,7 +209,7 @@ def death_embed(dead, new):
         description=(
             f"**{petlib.display_name(dead)}** (gen {dead['generation']}, lvl {dead['level']}) "
             f"passed away after ~15 days with no care at all.\n\n"
-            f"A new **{new['species']}** has hatched, glowing a fresh "
+            f"A new **{config.species_name(new['species'])}** has hatched, glowing a fresh "
             f"**{petlib.color_of(new)[0]}**. Give it a name with `/rename`.\n"
             f"*(Your collection is safe — it carries over.)*"
         ),
@@ -234,7 +234,7 @@ def collection_embed(collection):
         rarity = config.SPECIES[name].get("rarity", 1)
         tag = "★ rare" if rarity <= 2 else ("· uncommon" if rarity <= 3 else "")
         e.add_field(
-            name=f"{name}  ({sset}) {tag}".strip(),
+            name=f"{config.species_name(name)}  ({sset}) {tag}".strip(),
             value=f"`{petlib.bar(got / n * 100, segments=n)}` {got}/{n}",
             inline=False,
         )
