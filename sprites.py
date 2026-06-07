@@ -155,7 +155,13 @@ except ImportError:  # pragma: no cover
 
 ANIM_SCALE = 9       # px per cell -> 144px sprite
 ANIM_FRAMES = 20
-ANIM_CANVAS = 168
+ANIM_CANVAS = 176    # extra top headroom so hats/crowns don't clip
+
+
+def _sprite_offset(size, sn):
+    """Center horizontally; bias the pet downward to leave headroom above
+    (so hats, crowns, and halos have room to sit)."""
+    return (size - sn) // 2, size - sn - 8
 
 
 def anim_path(species, color_index):
@@ -250,7 +256,7 @@ def render_anim(species, color_index, scale=ANIM_SCALE, frames=ANIM_FRAMES, size
     sn = body.size[0]
     glow_img = _glow_layer(mask, glow, blur=scale * 1.7)
     core_img = _core_layer(mask, scale)
-    ox = oy = (size - sn) // 2
+    ox, oy = _sprite_offset(size, sn)
     seed = color_index * 7 + list(config.SPECIES).index(species) * 101
     motes = _motes(6, size, glow, seed)
     out = []
@@ -291,6 +297,131 @@ def build_anim_all():
             _save_gif(render_anim(species, ci), anim_path(species, ci))
             count += 1
     return count
+
+
+# --------------------------------------------------------------------------
+# Cosmetics (Phase 2) -- composite an equipped item onto the glowing pet.
+# Dressed GIFs are generated on demand and cached in sprites/dressed/ (which is
+# git-ignored). Overlays are positioned from the species' own pixel grid, so a
+# hat sits right on every shape without a hand-tuned table per species.
+# --------------------------------------------------------------------------
+DRESSED_DIR = os.path.join(SPRITE_DIR, "dressed")
+
+
+def dressed_path(species, color_index, item_id):
+    name, _ = config.color_for(species, color_index)
+    return os.path.join(DRESSED_DIR, f"{species}_{color_index}_{name}__{item_id}.gif")
+
+
+def _body_bounds(species):
+    """(min_x, max_x, min_y, max_y, eye_cells) in 16x16 grid space."""
+    grid = GRIDS[species]
+    xs, ys, eyes = [], [], []
+    for y, row in enumerate(grid):
+        for x, ch in enumerate(row):
+            if ch != "0":
+                xs.append(x); ys.append(y)
+            if ch in ("5", "6"):
+                eyes.append((x, y))
+    return min(xs), max(xs), min(ys), max(ys), eyes
+
+
+def _cosmetic_cells(item_id, species):
+    """[(cell_x, cell_y, (r,g,b)), ...] for a cosmetic, in grid space.
+    Everything stays within ~2 cells above the body and not below it, so it
+    never clips the canvas."""
+    minx, maxx, miny, maxy, eyes = _body_bounds(species)
+    cx = (minx + maxx) / 2.0
+    if eyes:
+        exs, eys = [e[0] for e in eyes], [e[1] for e in eyes]
+        eye_l, eye_r, eye_y = min(exs), max(exs), min(eys)
+    else:
+        eye_l, eye_r, eye_y = int(cx) - 2, int(cx) + 2, int((miny + maxy) / 2)
+    c = []
+    if item_id == "party_hat":
+        red, pom = (224, 72, 72), (246, 222, 96)
+        c += [(cx - 1, miny, red), (cx, miny, red), (cx + 1, miny, red),
+              (cx, miny - 1, pom)]
+    elif item_id == "shades":
+        dark, glint = (22, 26, 32), (130, 232, 244)
+        for x in range(eye_l - 1, eye_r + 2):
+            c.append((x, eye_y, dark))
+        c.append((eye_l - 1, eye_y, glint))
+    elif item_id == "crown":
+        gold, tip = (236, 196, 72), (255, 242, 168)
+        c += [(cx - 2, miny, gold), (cx - 1, miny, gold), (cx, miny, gold),
+              (cx + 1, miny, gold), (cx + 2, miny, gold),
+              (cx - 2, miny - 1, tip), (cx, miny - 1, tip), (cx + 2, miny - 1, tip)]
+    elif item_id == "halo":
+        pale = (250, 236, 150)
+        c += [(cx - 2, miny - 2, pale), (cx - 1, miny - 2, pale), (cx, miny - 2, pale),
+              (cx + 1, miny - 2, pale), (cx + 2, miny - 2, pale)]
+    elif item_id == "headphones":
+        band, cup = (62, 66, 78), (150, 160, 180)
+        c += [(cx - 1, miny, band), (cx, miny, band), (cx + 1, miny, band),
+              (minx - 1, eye_y, cup), (minx - 1, eye_y + 1, cup),
+              (maxx + 1, eye_y, cup), (maxx + 1, eye_y + 1, cup)]
+    elif item_id == "scarf":
+        c1, c2 = (206, 72, 92), (242, 132, 152)
+        row = maxy - 2
+        for i, x in enumerate(range(minx, maxx + 1)):
+            c.append((x, row, c1 if i % 2 == 0 else c2))
+    elif item_id == "star_aura":
+        spark = (255, 246, 184)
+        c += [(minx - 1, miny + 1, spark), (maxx + 1, miny, spark),
+              (maxx + 1, maxy - 1, spark), (minx - 1, maxy - 2, spark),
+              (cx, miny - 2, spark)]
+    return c
+
+
+def _draw_cosmetic(frame, cells, scale, ox, oy):
+    d = ImageDraw.Draw(frame)
+    for cxf, cyf, col in cells:
+        x0 = ox + int(round(cxf * scale))
+        y0 = oy + int(round(cyf * scale))
+        d.rectangle([x0, y0, x0 + scale - 1, y0 + scale - 1], fill=col + (255,))
+
+
+def render_dressed(species, color_index, item_id, scale=ANIM_SCALE,
+                   frames=ANIM_FRAMES, size=ANIM_CANVAS):
+    """Frames of the pet wearing one cosmetic, composited over the glow render."""
+    if Image is None or _np is None:
+        raise RuntimeError("Pillow + numpy required: pip install -r requirements-dev.txt")
+    glow = _glow_rgb(config.SPECIES[species]["colors"][color_index][1])
+    body, mask, eyes = _body_and_mask(species, color_index, scale)
+    sn = body.size[0]
+    glow_img = _glow_layer(mask, glow, blur=scale * 1.7)
+    core_img = _core_layer(mask, scale)
+    ox, oy = _sprite_offset(size, sn)
+    seed = color_index * 7 + list(config.SPECIES).index(species) * 101
+    motes = _motes(6, size, glow, seed)
+    cells = _cosmetic_cells(item_id, species)
+    out = []
+    for f in range(frames):
+        t = f / frames
+        bob = round(math.sin(2 * math.pi * t) * 6)
+        pulse = 0.55 + 0.45 * (0.5 + 0.5 * math.sin(2 * math.pi * t))
+        frame = _vignette(size)
+        g = glow_img.copy()
+        g.putalpha(g.split()[3].point(lambda a: int(a * pulse)))
+        frame.alpha_composite(g, (ox, oy + bob))
+        frame.alpha_composite(body, (ox, oy + bob))
+        frame.alpha_composite(core_img, (ox, oy + bob))
+        _draw_cosmetic(frame, cells, scale, ox, oy + bob)  # rides the bob
+        frame = _draw_motes(frame, motes, t, size, glow)
+        out.append(frame.convert("RGB"))
+    return out
+
+
+def ensure_dressed(species, color_index, item_id):
+    """Return the cached dressed-GIF path, generating it once if missing."""
+    if item_id not in config.ITEMS:
+        return anim_path(species, color_index)
+    os.makedirs(DRESSED_DIR, exist_ok=True)
+    path = dressed_path(species, color_index, item_id)
+    if not os.path.exists(path):
+        _save_gif(render_dressed(species, color_index, item_id), path)
+    return path
 
 
 if __name__ == "__main__":

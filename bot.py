@@ -106,13 +106,28 @@ async def refresh_pet(gid):
 # --------------------------------------------------------------------------
 # Sprite attachments
 # --------------------------------------------------------------------------
-def sprite_file(species, color_index, as_name="sprite.gif"):
-    """A discord.File for a combo's animated glow GIF, or None if art isn't built yet."""
-    path = sprites.anim_path(species, color_index)
-    try:
-        return discord.File(path, filename=as_name)
-    except (FileNotFoundError, OSError):
-        return None
+def sprite_file(species, color_index, as_name="sprite.gif", item_id=None):
+    """A discord.File for a combo's glow GIF -- dressed if a cosmetic is equipped,
+    otherwise the plain glow. None if the art isn't built yet."""
+    candidates = []
+    if item_id:
+        candidates.append(sprites.dressed_path(species, color_index, item_id))
+    candidates.append(sprites.anim_path(species, color_index))
+    for path in candidates:
+        try:
+            return discord.File(path, filename=as_name)
+        except (FileNotFoundError, OSError):
+            continue
+    return None
+
+
+async def _ensure_look(pet, collection):
+    """If the pet has an equipped cosmetic, make sure its dressed GIF is cached
+    (composited off the event loop so it never blocks)."""
+    item_id = collection.get("equipped") if collection else None
+    if item_id and item_id in config.ITEMS:
+        await asyncio.to_thread(sprites.ensure_dressed,
+                                pet["species"], pet["color_index"], item_id)
 
 
 # --------------------------------------------------------------------------
@@ -142,7 +157,8 @@ def pet_embed(pet, collection=None):
         e.add_field(name="📖 collection", value=f"{found}/{total} found", inline=True)
 
     color_name, _ = petlib.color_of(pet)
-    f = sprite_file(pet["species"], pet["color_index"])
+    equipped = collection.get("equipped") if collection else None
+    f = sprite_file(pet["species"], pet["color_index"], item_id=equipped)
     if f is not None:
         e.set_thumbnail(url="attachment://sprite.gif")
     e.set_footer(text=f"generation {pet['generation']} · {pet['species']} · {color_name}")
@@ -246,6 +262,7 @@ async def _respond_with_action(interaction, action_fn, verb, stars=0):
         petlib.grant_stars(collection, stars)
         await _save_collection(gid, collection)
 
+    await _ensure_look(pet, collection)
     e, f = pet_embed(pet, collection)
     if ok:
         e.description = f"**{interaction.user.display_name}** {verb}. {petlib.display_name(pet)} {msg}"
@@ -268,6 +285,7 @@ async def status(interaction: discord.Interaction):
         await interaction.followup.send(embed=e, file=f) if f else await interaction.followup.send(embed=e)
         return
     collection = await refresh_collection(gid)
+    await _ensure_look(pet, collection)
     e, f = pet_embed(pet, collection)
     await interaction.followup.send(embed=e, file=f) if f else await interaction.followup.send(embed=e)
 
@@ -320,6 +338,7 @@ async def rename(interaction: discord.Interaction, name: str):
     old = petlib.display_name(pet)
     pet["name"] = name
     await _save_pet(gid, pet)
+    await _ensure_look(pet, collection)
     e, f = pet_embed(pet, collection)
     e.description = f"{old} is now known as **{name}**."
     await interaction.followup.send(embed=e, file=f) if f else await interaction.followup.send(embed=e)
@@ -470,10 +489,11 @@ async def equip(interaction: discord.Interaction, item: str):
     result = petlib.equip_item(collection, item)
     if result["result"] == "equipped":
         await _save_collection(gid, collection)
+        pet, _ = await refresh_pet(gid)
+        await asyncio.to_thread(sprites.ensure_dressed, pet["species"], pet["color_index"], item)
         spec = config.ITEMS[item]
         await interaction.followup.send(
-            f"{spec['emoji']} Blobby is now wearing the **{spec['name']}**! "
-            "*(it'll appear on the portrait in a later update)*")
+            f"{spec['emoji']} Blobby is now wearing the **{spec['name']}**! See `/status`.")
     elif result["result"] == "unowned":
         await interaction.followup.send("the server doesn't own that yet — `/buy` it first.")
     else:

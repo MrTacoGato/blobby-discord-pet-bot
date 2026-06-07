@@ -27,7 +27,7 @@ A Tamagotchi-style **shared pet** that an entire Discord server raises together.
 - **A shared gacha collection.** `/feed` and `/pet` pour ⭐ into one server-wide pool; `/wish` spends stars to pull a random species × color into a shared album of **30** collectibles, with rarity weights and duplicate refunds.
 - **Stateless, "settle-on-read" decay.** Needs decay from a single timestamp computed at read time — no cron, no background scheduler. The bot can restart or sleep for a week and the pet's state is always correct.
 - **Gentle, forgiving death.** No "die" button. Blobby only passes after ~15 days of *total* neglect, then a fresh random pet hatches and the collection carries over untouched.
-- **Animated glow art.** 30 Game Boy-style creatures are pre-baked as **animated GIFs** — an inner light core, soft bloom, idle bob, and drifting motes — and committed; the bot just attaches them at runtime (no image library in the hot path).
+- **Animated glow art.** 30 Game Boy-style creatures are pre-baked as **animated GIFs** — inner light core, soft bloom, idle bob, drifting motes. Equipped cosmetics composite onto the pet on demand and are cached per look.
 - **Production-minded.** Single-table DynamoDB, async-safe AWS calls, Dockerized, and 12-factor secrets (env locally, AWS SSM Parameter Store in production).
 
 ## How it plays
@@ -52,7 +52,7 @@ There are **6 species × 5 colors = 30** collectibles. Some species are rarer th
 | Language | Python 3.10+ |
 | Discord | [`discord.py`](https://discordpy.readthedocs.io/) 2.3+ (slash commands via `app_commands`, message-content intent for passive XP) |
 | Persistence | AWS DynamoDB (single-table) via `boto3`; works against **DynamoDB Local** for development |
-| Art | Pillow + numpy — bake 16×16 pixel creatures into **animated glow GIFs** (dev-only) |
+| Art | Pillow + numpy — pre-baked **animated glow GIFs** + on-demand cosmetic compositing (cached) |
 | Config / secrets | `python-dotenv` locally; AWS SSM Parameter Store in production |
 | Packaging | Docker (`python:3.12-slim`) |
 
@@ -83,7 +83,7 @@ Keying the collection by **guild** (not user) is what makes the album and star p
 
 **Async-safe AWS.** `boto3` is synchronous, so every call is dispatched with `asyncio.to_thread(...)` to keep the Discord event loop responsive.
 
-**Sprites as build artifacts.** `sprites.py` bakes all 30 species × color creatures into **animated glow GIFs** (inner light core, bloom, idle bob, drifting motes) from the same pixel grids and Game Boy palettes as [`docs/blobby_sprites.html`](docs/blobby_sprites.html). They're committed to `sprites/`, so **Pillow + numpy are dev-only** — the running bot never imports them, it just attaches the finished GIFs.
+**Sprites as build artifacts (+ on-demand dressing).** `sprites.py` bakes all 30 species × color creatures into **animated glow GIFs** (inner light core, bloom, idle bob, drifting motes) from the same pixel grids and Game Boy palettes as [`docs/blobby_sprites.html`](docs/blobby_sprites.html), committed to `sprites/`. When a cosmetic is equipped, the bot composites it onto the pet **once per look** and caches the result in `sprites/dressed/` (git-ignored) — so **Pillow + numpy are a light runtime dependency**: image work happens only the first time a new look appears, then it's served from cache.
 
 ## Project structure
 

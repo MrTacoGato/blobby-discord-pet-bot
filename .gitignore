@@ -36,5 +36,8 @@ Thumbs.db
 .idea/
 .vscode/
 
+# ─── Generated at runtime (dressed-pet compositing cache) ───
+sprites/dressed/
+
 # ─── Local planning docs (kept out of the public repo) ───
 plans/
