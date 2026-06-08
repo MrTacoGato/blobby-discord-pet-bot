@@ -66,6 +66,57 @@ GRIDS = {
 
 SPRITE_DIR = os.path.join(os.path.dirname(__file__), "sprites")
 
+# --------------------------------------------------------------------------
+# Authored art (the final art-bot pixel set). When the art bot exports frames
+# into sprites/art/, the loader prefers them over the procedural glow renders;
+# anything missing silently stays procedural, so species can be swapped one at
+# a time with no data migration. See plans/ASSET_PIPELINE.md.
+#
+#   sprites/art/<species>_<colorname>.gif   idle, e.g. blob_lime.gif
+#   sprites/art/bg/<species>.gif            background (1:1 per species)
+#   sprites/art/items/<item_id>.png         cosmetic overlay (transparent)
+#   sprites/art/rarity/<rarity>.png         rarity badge (transparent)
+#
+# Filenames use INTERNAL keys (blob/slime/... , lime/azure/...); the cute
+# display names live only in config.species_name(). Bump BLOBBY_ART_VERSION to
+# bust the composited sprites/dressed/ cache after re-exporting art.
+# --------------------------------------------------------------------------
+ART_DIR = os.path.join(SPRITE_DIR, "art")
+ART_VERSION = os.environ.get("BLOBBY_ART_VERSION", "v1")
+# Optional per-species nudge for the cosmetic anchor, in canvas px. The art bot
+# fills this in only if one shared anchor doesn't sit right on every silhouette.
+ITEM_ANCHOR = {}
+
+
+def _authored_idle(species, color_index):
+    """Path to an authored idle GIF for this combo, or None if not exported."""
+    name, _ = config.color_for(species, color_index)
+    p = os.path.join(ART_DIR, f"{species}_{name}.gif")
+    return p if os.path.exists(p) else None
+
+
+def _authored_bg(species):
+    """Path to an authored background GIF/PNG for this species, or None."""
+    for ext in ("gif", "png"):
+        p = os.path.join(ART_DIR, "bg", f"{species}.{ext}")
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def _authored_item(item_id):
+    """Path to an authored cosmetic overlay PNG, or None."""
+    if not item_id:
+        return None
+    p = os.path.join(ART_DIR, "items", f"{item_id}.png")
+    return p if os.path.exists(p) else None
+
+
+def rarity_icon_path(rarity):
+    """Path to an authored rarity badge PNG, or None (callers fall back to emoji)."""
+    p = os.path.join(ART_DIR, "rarity", f"{rarity}.png")
+    return p if os.path.exists(p) else None
+
 
 # --------------------------------------------------------------------------
 # Color ramp: rebuild the 4 body shades + eyes/mouth from a species' embed hex.
@@ -165,7 +216,11 @@ def _sprite_offset(size, sn):
 
 
 def anim_path(species, color_index):
-    """Stable on-disk path for a combo's animated GIF (sprites/blob_0_lime.gif)."""
+    """Best idle GIF for a combo: authored art if exported, else the procedural
+    glow render (sprites/blob_0_lime.gif). Authored idles win automatically."""
+    authored = _authored_idle(species, color_index)
+    if authored:
+        return authored
     name, _ = config.color_for(species, color_index)
     return os.path.join(SPRITE_DIR, f"{species}_{color_index}_{name}.gif")
 
@@ -309,8 +364,12 @@ DRESSED_DIR = os.path.join(SPRITE_DIR, "dressed")
 
 
 def dressed_path(species, color_index, item_id):
+    """Cache path for a composited look. The ART_VERSION suffix busts the cache
+    when authored art is re-exported (bump BLOBBY_ART_VERSION). item_id may be a
+    real cosmetic id or the sentinel '_look' for a bare background composite."""
     name, _ = config.color_for(species, color_index)
-    return os.path.join(DRESSED_DIR, f"{species}_{color_index}_{name}__{item_id}.gif")
+    return os.path.join(
+        DRESSED_DIR, f"{species}_{color_index}_{name}__{item_id}__{ART_VERSION}.gif")
 
 
 def _body_bounds(species):
@@ -413,9 +472,73 @@ def render_dressed(species, color_index, item_id, scale=ANIM_SCALE,
     return out
 
 
-def ensure_dressed(species, color_index, item_id):
-    """Return the cached dressed-GIF path, generating it once if missing."""
-    if item_id not in config.ITEMS:
+def _open_frames(path, size):
+    """Load every frame of an authored GIF/PNG as RGBA, normalized to `size`."""
+    im = Image.open(path)
+    frames = []
+    try:
+        while True:
+            f = im.convert("RGBA")
+            if f.size != (size, size):
+                f = f.resize((size, size))
+            frames.append(f)
+            im.seek(im.tell() + 1)
+    except EOFError:
+        pass
+    return frames or [Image.new("RGBA", (size, size), (0, 0, 0, 0))]
+
+
+def render_authored(species, color_index, item_id=None, size=ANIM_CANVAS):
+    """Composite authored frames: background -> authored idle -> cosmetic overlay.
+    Requires an authored idle to exist. Missing background/overlay are simply
+    skipped (transparent idle lands on a dark backdrop)."""
+    if Image is None:
+        raise RuntimeError("Pillow required: pip install -r requirements-dev.txt")
+    idle = _open_frames(_authored_idle(species, color_index), size)
+    bg_path = _authored_bg(species)
+    bg = _open_frames(bg_path, size) if bg_path else None
+    item_path = _authored_item(item_id)
+    item = _open_frames(item_path, size)[0] if item_path else None
+    dx, dy = ITEM_ANCHOR.get(species, (0, 0))
+    out = []
+    for i, fr in enumerate(idle):
+        base = Image.new("RGBA", (size, size), (10, 14, 26, 255))  # dark fallback
+        if bg:
+            base.alpha_composite(bg[i % len(bg)])
+        base.alpha_composite(fr)
+        if item is not None:
+            base.alpha_composite(item, (dx, dy))
+        out.append(base.convert("RGB"))
+    return out
+
+
+def ensure_dressed(species, color_index, item_id=None):
+    """Return the path the bot should attach, compositing + caching once if needed.
+
+    Authored art wins: if an authored idle exists and there's a background and/or
+    cosmetic overlay to layer on, the composite is cached under sprites/dressed/.
+    With nothing to composite, the raw authored idle (or procedural GIF) is used.
+    Falls back to the original procedural cosmetic render when there's no
+    authored idle. Never raises just because art is missing -- it degrades."""
+    has_item = bool(item_id) and item_id in config.ITEMS
+
+    # --- authored path -----------------------------------------------------
+    if _authored_idle(species, color_index):
+        bg = _authored_bg(species)
+        overlay = _authored_item(item_id) if has_item else None
+        if not bg and not overlay:
+            return anim_path(species, color_index)  # raw authored idle is enough
+        os.makedirs(DRESSED_DIR, exist_ok=True)
+        # Key on the cosmetic when one is actually drawn, else the bg sentinel.
+        key = item_id if overlay else "_look"
+        path = dressed_path(species, color_index, key)
+        if not os.path.exists(path):
+            _save_gif(render_authored(species, color_index,
+                                      item_id if overlay else None), path)
+        return path
+
+    # --- procedural path (unchanged behavior) ------------------------------
+    if not has_item:
         return anim_path(species, color_index)
     os.makedirs(DRESSED_DIR, exist_ok=True)
     path = dressed_path(species, color_index, item_id)

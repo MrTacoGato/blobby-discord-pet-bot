@@ -112,6 +112,8 @@ def sprite_file(species, color_index, as_name="sprite.gif", item_id=None):
     candidates = []
     if item_id:
         candidates.append(sprites.dressed_path(species, color_index, item_id))
+    # Authored background-only composite (transparent idle on its backdrop).
+    candidates.append(sprites.dressed_path(species, color_index, "_look"))
     candidates.append(sprites.anim_path(species, color_index))
     for path in candidates:
         try:
@@ -122,12 +124,14 @@ def sprite_file(species, color_index, as_name="sprite.gif", item_id=None):
 
 
 async def _ensure_look(pet, collection):
-    """If the pet has an equipped cosmetic, make sure its dressed GIF is cached
-    (composited off the event loop so it never blocks)."""
+    """Make sure the pet's current look is composited + cached off the event loop
+    so attaching it never blocks. Warms the equipped cosmetic when there is one,
+    otherwise the authored background composite. A no-op for plain procedural art."""
     item_id = collection.get("equipped") if collection else None
-    if item_id and item_id in config.ITEMS:
-        await asyncio.to_thread(sprites.ensure_dressed,
-                                pet["species"], pet["color_index"], item_id)
+    if item_id not in config.ITEMS:
+        item_id = None
+    await asyncio.to_thread(sprites.ensure_dressed,
+                            pet["species"], pet["color_index"], item_id)
 
 
 # --------------------------------------------------------------------------
