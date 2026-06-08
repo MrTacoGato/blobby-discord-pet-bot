@@ -485,7 +485,9 @@ def _open_frames(path, size):
         while True:
             f = im.convert("RGBA")
             if f.size != (size, size):
-                f = f.resize((size, size))
+                # Nearest-neighbour keeps authored pixel art crisp, so the art bot
+                # can deliver any square size (176, 512, 1024...) and it stays sharp.
+                f = f.resize((size, size), Image.NEAREST)
             frames.append(f)
             im.seek(im.tell() + 1)
     except EOFError:
