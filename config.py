@@ -254,3 +254,54 @@ ITEMS = {
 def item_price(item_id: str) -> int:
     """Coin price for an item, derived from its rarity."""
     return ITEM_PRICE[ITEMS[item_id]["rarity"]]
+
+
+# --------------------------------------------------------------------------
+# Monetization (Discord Premium Apps) -- INERT until SKU IDs are set.
+#
+# The shop above (`/shop`, `/buy`) is the FREE coins economy. This section is the
+# *real-money* layer: deterministic, cosmetic, recognition-based offerings sold
+# through Discord's in-app purchases. Nothing here is randomized or pay-to-win.
+#
+# It stays completely dormant until you create the SKUs in
+# Dev Portal -> Monetization and paste their IDs into these env vars. With every
+# SKU unset, MONETIZATION_ENABLED is False: no `/perks`, no `/hall`, no premium
+# buttons -- the bot runs exactly as it does today. Flip it on one SKU at a time.
+#
+# See plans/MONETIZATION_PLAYBOOK.md (what/why) and plans/ELIGIBILITY_RUNBOOK.md.
+# --------------------------------------------------------------------------
+# Discord SKU snowflake IDs (strings). Leave unset to keep a feature dormant.
+SKU_CARETAKER  = os.environ.get("SKU_CARETAKER")  or None   # Guild Subscription
+SKU_MEMORIAL   = os.environ.get("SKU_MEMORIAL")   or None   # Durable (one-time)
+SKU_GIFT_FROST = os.environ.get("SKU_GIFT_FROST") or None   # Durable (guild gift)
+
+# Display catalog. Prices are display-only labels; Discord is the source of truth
+# for actual pricing and entitlements. `sku_id=None` => that row is hidden.
+SKUS = {
+    "caretaker": {
+        "sku_id": SKU_CARETAKER, "name": "Caretaker", "emoji": "🕯️",
+        "price": "$4.99/mo",
+        "blurb": "Support the server's pet: a supporter badge on /status, a place "
+                 "in /hall, and a say in the pet's name and color.",
+    },
+    "memorial": {
+        "sku_id": SKU_MEMORIAL, "name": "Memorial", "emoji": "🪦",
+        "price": "$2.49",
+        "blurb": "A permanent framed tribute in /hall to the generation that "
+                 "passed. A keepsake -- never a revive.",
+    },
+    "gift_frost": {
+        "sku_id": SKU_GIFT_FROST, "name": "Gift the Frost character", "emoji": "🎁",
+        "price": "$3.99",
+        "blurb": "A visible thank-you to the whole server -- 'gifted the Frost "
+                 "character to everyone.'",
+    },
+}
+
+# True once at least one SKU id is configured. Gates all monetization surface.
+MONETIZATION_ENABLED = any(s["sku_id"] for s in SKUS.values())
+
+
+def sku(key: str):
+    """Configured Discord SKU id for a catalog key, or None if it's dormant."""
+    return SKUS.get(key, {}).get("sku_id")

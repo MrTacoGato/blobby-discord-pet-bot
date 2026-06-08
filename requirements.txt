@@ -1,4 +1,6 @@
-discord.py>=2.3.0
+# 2.4+ is required for the monetization layer (premium buttons + entitlement
+# events). Core pet/collection features run on 2.3; bump to ship payments.
+discord.py>=2.4.0
 boto3>=1.34.0
 python-dotenv>=1.0.0
 # Compositing equipped cosmetics onto the pet at runtime (Phase 2). Each

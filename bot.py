@@ -135,6 +135,78 @@ async def _ensure_look(pet, collection):
 
 
 # --------------------------------------------------------------------------
+# Monetization helpers (Premium Apps) -- all dormant until a SKU id is set.
+# Discord's entitlements are the source of truth for "did they pay"; we only
+# persist the cosmetic *result* (a memorial entry, a caretaker, a gift).
+# --------------------------------------------------------------------------
+def _has_entitlement(interaction, sku_id) -> bool:
+    """True if this interaction carries an active (unconsumed) entitlement."""
+    if not sku_id:
+        return False
+    sid = str(sku_id)
+    for e in getattr(interaction, "entitlements", None) or []:
+        if str(getattr(e, "sku_id", "")) == sid and not getattr(e, "consumed", False):
+            return True
+    return False
+
+
+def _premium_button(sku_id):
+    """A Discord premium (buy) button for a SKU, or None if unset/unsupported.
+    Premium buttons need discord.py >= 2.4; on older versions this no-ops."""
+    if not sku_id:
+        return None
+    try:
+        return discord.ui.Button(style=discord.ButtonStyle.premium, sku_id=int(sku_id))
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _premium_view(*catalog_keys):
+    """A View of premium buttons for the given catalog keys; None if all dormant."""
+    view = discord.ui.View()
+    added = False
+    for key in catalog_keys:
+        btn = _premium_button(config.sku(key))
+        if btn is not None:
+            view.add_item(btn)
+            added = True
+    return view if added else None
+
+
+def _memorial_record(dead, remembered_by=None):
+    """A keepsake snapshot of a pet that passed -- what /hall enshrines."""
+    color_name, _ = petlib.color_of(dead)
+    return {
+        "generation": dead.get("generation", 1),
+        "species": dead["species"],
+        "color_index": dead.get("color_index", 0),
+        "color": color_name,
+        "name": petlib.display_name(dead),
+        "level": dead.get("level", 1),
+        "remembered_by": remembered_by,
+        "ts": petlib.now(),
+    }
+
+
+async def _send_death(interaction, gid, dead, new):
+    """Send the death/respawn embed, attaching the premium Memorial button when
+    that SKU is live and stashing the passed generation so a purchase knows what
+    to enshrine. A new pet always hatches free -- this is a tribute, never a revive."""
+    if config.sku("memorial"):
+        coll = await refresh_collection(gid)
+        coll["last_passed"] = _memorial_record(dead)
+        await _save_collection(gid, coll)
+    e, f = death_embed(dead, new)
+    view = _premium_view("memorial")
+    kwargs = {"embed": e}
+    if f:
+        kwargs["file"] = f
+    if view:
+        kwargs["view"] = view
+    await interaction.followup.send(**kwargs)
+
+
+# --------------------------------------------------------------------------
 # Embeds  (each returns (embed, file) so the caller can attach the sprite)
 # --------------------------------------------------------------------------
 def pet_embed(pet, collection=None):
@@ -254,8 +326,7 @@ async def _respond_with_action(interaction, action_fn, verb, stars=0):
     gid = interaction.guild_id
     pet, death = await refresh_pet(gid)
     if death:
-        e, f = death_embed(*death)
-        await interaction.followup.send(embed=e, file=f) if f else await interaction.followup.send(embed=e)
+        await _send_death(interaction, gid, *death)
         return
 
     collection = await refresh_collection(gid)
@@ -285,8 +356,7 @@ async def status(interaction: discord.Interaction):
     gid = interaction.guild_id
     pet, death = await refresh_pet(gid)
     if death:
-        e, f = death_embed(*death)
-        await interaction.followup.send(embed=e, file=f) if f else await interaction.followup.send(embed=e)
+        await _send_death(interaction, gid, *death)
         return
     collection = await refresh_collection(gid)
     await _ensure_look(pet, collection)
@@ -335,8 +405,7 @@ async def rename(interaction: discord.Interaction, name: str):
     if death:
         pet["name"] = name  # name the newborn
         await _save_pet(gid, pet)
-        e, f = death_embed(*death)
-        await interaction.followup.send(embed=e, file=f) if f else await interaction.followup.send(embed=e)
+        await _send_death(interaction, gid, *death)
         return
     collection = await refresh_collection(gid)
     old = petlib.display_name(pet)
@@ -515,6 +584,113 @@ async def unequip_cmd(interaction: discord.Interaction):
 
 
 # --------------------------------------------------------------------------
+# Monetization surface (Premium Apps).
+# /perks and /hall are removed from the command tree in setup_hook unless
+# MONETIZATION_ENABLED, so with no SKUs configured they never even appear.
+# --------------------------------------------------------------------------
+@bot.tree.command(name="perks", description="Support Blobby and unlock cosmetic perks")
+async def perks(interaction: discord.Interaction):
+    await interaction.response.defer()
+    e = discord.Embed(
+        title="🕯️ Support Blobby",
+        description=("Optional, cosmetic ways to support the server's pet. Everything "
+                     "here is a specific item you can see — no randomness, no pay-to-win."),
+        color=discord.Color(config.EMBED_NEUTRAL),
+    )
+    keys = []
+    for key, spec in config.SKUS.items():
+        if spec["sku_id"]:
+            e.add_field(name=f"{spec['emoji']} {spec['name']} · {spec['price']}",
+                        value=spec["blurb"], inline=False)
+            keys.append(key)
+    view = _premium_view(*keys)
+    if view:
+        await interaction.followup.send(embed=e, view=view)
+    else:
+        await interaction.followup.send(embed=e)
+
+
+@bot.tree.command(name="hall", description="The Hall of Caretakers -- supporters and memorials")
+async def hall(interaction: discord.Interaction):
+    await interaction.response.defer()
+    coll = await refresh_collection(interaction.guild_id)
+    e = discord.Embed(title="🏛️ Hall of Caretakers",
+                      color=discord.Color(config.EMBED_NEUTRAL))
+
+    caretakers = coll.get("caretakers", [])
+    e.add_field(
+        name="🕯️ Caretakers",
+        value=("\n".join(f"<@{c['user_id']}>" for c in caretakers)
+               if caretakers else "No caretakers yet — see `/perks`."),
+        inline=False,
+    )
+
+    memorials = coll.get("memorials", [])
+    if memorials:
+        lines = []
+        for m in memorials[-10:]:
+            by = f" · remembered by <@{m['remembered_by']}>" if m.get("remembered_by") else ""
+            lines.append(
+                f"🪦 **{m['name']}** — gen {m['generation']}, "
+                f"{config.species_name(m['species'])} ({m.get('color', '?')}), "
+                f"lvl {m['level']}{by}")
+        e.add_field(name="🕊️ In Memoriam", value="\n".join(lines), inline=False)
+
+    await interaction.followup.send(embed=e)
+
+
+@bot.event
+async def on_entitlement_create(entitlement):
+    await _apply_entitlement(entitlement, granted=True)
+
+
+@bot.event
+async def on_entitlement_delete(entitlement):
+    await _apply_entitlement(entitlement, granted=False)
+
+
+async def _apply_entitlement(ent, granted):
+    """Persist the cosmetic result of a purchase (or its removal). Idempotent."""
+    gid = getattr(ent, "guild_id", None)
+    uid = getattr(ent, "user_id", None)
+    sku_id = str(getattr(ent, "sku_id", "") or "")
+    if not gid or not sku_id:
+        return
+    coll = await refresh_collection(gid)
+    changed = False
+
+    if sku_id == str(config.sku("memorial") or ""):
+        if granted:
+            rec = dict(coll.get("last_passed") or {})
+            if rec:
+                rec["remembered_by"] = uid
+                rec["ts"] = petlib.now()
+                coll.setdefault("memorials", []).append(rec)
+                coll.pop("last_passed", None)
+                changed = True
+
+    elif sku_id == str(config.sku("caretaker") or ""):
+        cts = coll.setdefault("caretakers", [])
+        has = any(c.get("user_id") == uid for c in cts)
+        if granted and not has:
+            cts.append({"user_id": uid, "since": petlib.now()})
+            changed = True
+        elif not granted and has:
+            coll["caretakers"] = [c for c in cts if c.get("user_id") != uid]
+            changed = True
+
+    elif sku_id == str(config.sku("gift_frost") or ""):
+        if granted:
+            coll.setdefault("gifts", []).append(
+                {"kind": "gift_frost", "by": uid, "ts": petlib.now()})
+            # TODO: apply the actual in-game unlock effect for the gift.
+            changed = True
+
+    if changed:
+        await _save_collection(gid, coll)
+
+
+# --------------------------------------------------------------------------
 # Passive XP from chatting (rate-limited so it can't be farmed)
 # --------------------------------------------------------------------------
 @bot.event
@@ -557,6 +733,11 @@ async def on_message(message: discord.Message):
 @bot.event
 async def setup_hook():
     await asyncio.to_thread(storage.ensure_table)
+    # Keep the monetization commands out of the tree until a SKU is configured,
+    # so with monetization off they never appear in Discord.
+    if not config.MONETIZATION_ENABLED:
+        for name in ("perks", "hall"):
+            bot.tree.remove_command(name)
     if config.DEV_GUILD_ID:
         guild = discord.Object(id=int(config.DEV_GUILD_ID))
         bot.tree.copy_global_to(guild=guild)
