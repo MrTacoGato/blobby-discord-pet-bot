@@ -89,10 +89,15 @@ ITEM_ANCHOR = {}
 
 
 def _authored_idle(species, color_index):
-    """Path to an authored idle GIF for this combo, or None if not exported."""
+    """Path to an authored idle for this combo, or None if not exported. Accepts
+    an animated GIF or a single transparent PNG still (Leonardo.ai exports PNGs);
+    a still is brought to life with a code-driven bob at composite time."""
     name, _ = config.color_for(species, color_index)
-    p = os.path.join(ART_DIR, f"{species}_{name}.gif")
-    return p if os.path.exists(p) else None
+    for ext in ("gif", "png"):
+        p = os.path.join(ART_DIR, f"{species}_{name}.{ext}")
+        if os.path.exists(p):
+            return p
+    return None
 
 
 def _authored_bg(species):
@@ -488,10 +493,12 @@ def _open_frames(path, size):
     return frames or [Image.new("RGBA", (size, size), (0, 0, 0, 0))]
 
 
-def render_authored(species, color_index, item_id=None, size=ANIM_CANVAS):
+def render_authored(species, color_index, item_id=None, size=ANIM_CANVAS,
+                    frames=ANIM_FRAMES):
     """Composite authored frames: background -> authored idle -> cosmetic overlay.
-    Requires an authored idle to exist. Missing background/overlay are simply
-    skipped (transparent idle lands on a dark backdrop)."""
+    Requires an authored idle to exist. A multi-frame idle keeps its own motion;
+    a single still gets a gentle code-driven bob so it still feels alive. Missing
+    background/overlay are skipped (transparent idle lands on a dark backdrop)."""
     if Image is None:
         raise RuntimeError("Pillow required: pip install -r requirements-dev.txt")
     idle = _open_frames(_authored_idle(species, color_index), size)
@@ -500,14 +507,18 @@ def render_authored(species, color_index, item_id=None, size=ANIM_CANVAS):
     item_path = _authored_item(item_id)
     item = _open_frames(item_path, size)[0] if item_path else None
     dx, dy = ITEM_ANCHOR.get(species, (0, 0))
+    animated = len(idle) > 1
+    n = len(idle) if animated else frames
     out = []
-    for i, fr in enumerate(idle):
+    for i in range(n):
+        t = i / n
+        bob = 0 if animated else round(math.sin(2 * math.pi * t) * 6)
         base = Image.new("RGBA", (size, size), (10, 14, 26, 255))  # dark fallback
         if bg:
             base.alpha_composite(bg[i % len(bg)])
-        base.alpha_composite(fr)
+        base.alpha_composite(idle[i if animated else 0], (0, bob))
         if item is not None:
-            base.alpha_composite(item, (dx, dy))
+            base.alpha_composite(item, (dx, dy + bob))  # cosmetic rides the bob
         out.append(base.convert("RGB"))
     return out
 
@@ -524,12 +535,11 @@ def ensure_dressed(species, color_index, item_id=None):
 
     # --- authored path -----------------------------------------------------
     if _authored_idle(species, color_index):
-        bg = _authored_bg(species)
         overlay = _authored_item(item_id) if has_item else None
-        if not bg and not overlay:
-            return anim_path(species, color_index)  # raw authored idle is enough
         os.makedirs(DRESSED_DIR, exist_ok=True)
-        # Key on the cosmetic when one is actually drawn, else the bg sentinel.
+        # Always composite authored art: it adds the idle bob, the background if
+        # one exists, and the cosmetic if one exists -- and normalizes a PNG still
+        # into a GIF the bot attaches uniformly. Cached, so Pillow runs once/look.
         key = item_id if overlay else "_look"
         path = dressed_path(species, color_index, key)
         if not os.path.exists(path):
