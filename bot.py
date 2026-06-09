@@ -29,7 +29,15 @@ import storage
 
 intents = discord.Intents.default()
 intents.message_content = True  # privileged: enable it in the Dev Portal too
-bot = commands.Bot(command_prefix="!", intents=intents)  # prefix unused
+# allowed_mentions=none() is a hard guarantee the bot never pings anyone -- no
+# @everyone/@here, role, or user notifications, ever -- even if a string happens
+# to contain a mention. This keeps Blobby clear of ping-spam quarantine risk
+# (eligibility checklist #8); /hall still renders <@id> as a name, just silently.
+bot = commands.Bot(
+    command_prefix="!",  # prefix unused; everything is slash commands
+    intents=intents,
+    allowed_mentions=discord.AllowedMentions.none(),
+)
 
 
 # --------------------------------------------------------------------------
@@ -693,6 +701,9 @@ async def _apply_entitlement(ent, granted):
 # --------------------------------------------------------------------------
 # Passive XP from chatting (rate-limited so it can't be farmed)
 # --------------------------------------------------------------------------
+_last_levelup_announce = {}  # channel_id -> ts, throttles level-up posts
+
+
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot or message.guild is None:
@@ -718,13 +729,16 @@ async def on_message(message: discord.Message):
     await _save_user(gid, uid, user)
 
     if levels:
-        try:
-            await message.channel.send(
-                f"✨ all your chatting leveled **{petlib.display_name(pet)}** up to "
-                f"**{pet['level']}** — you earned **+{coins} 🪙**!"
-            )
-        except discord.HTTPException:
-            pass
+        cid = message.channel.id
+        if petlib.now() - _last_levelup_announce.get(cid, 0) >= config.LEVELUP_ANNOUNCE_COOLDOWN:
+            _last_levelup_announce[cid] = petlib.now()
+            try:
+                await message.channel.send(
+                    f"✨ all your chatting leveled **{petlib.display_name(pet)}** up to "
+                    f"**{pet['level']}** — you earned **+{coins} 🪙**!"
+                )
+            except discord.HTTPException:
+                pass
 
 
 # --------------------------------------------------------------------------

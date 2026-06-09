@@ -84,6 +84,9 @@ XP_PLAY = 8
 XP_PET = 4
 XP_PASSIVE = 2  # per qualifying chat message (rate-limited below)
 PASSIVE_XP_COOLDOWN = 60  # seconds between passive-XP grants per member
+# Don't post a level-up message in a channel more than once per this window, so
+# a busy server can't make the bot spam announcements (anti-quarantine, #8).
+LEVELUP_ANNOUNCE_COOLDOWN = 120  # seconds between level-up posts per channel
 
 
 def xp_to_next(level: int) -> int:
