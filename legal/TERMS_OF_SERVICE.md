@@ -63,7 +63,7 @@ We may update these Terms as the bot evolves. Material changes are indicated by 
 
 ## 12. Governing law
 
-These Terms are governed by the laws of **[INSERT YOUR STATE / COUNTRY]**, without regard to conflict-of-laws principles. Nothing here limits any mandatory consumer-protection rights you have where you live.
+These Terms are governed by the laws of **the State of Texas, USA**, without regard to conflict-of-laws principles. Nothing here limits any mandatory consumer-protection rights you have where you live.
 
 ## 13. Contact
 
