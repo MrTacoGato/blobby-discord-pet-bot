@@ -60,7 +60,7 @@ We may update this policy as the bot evolves. Material changes will be reflected
 
 ## 10. Contact
 
-Questions or data-deletion requests: **[INSERT SUPPORT EMAIL OR DISCORD SUPPORT-SERVER INVITE]**
+Questions or data-deletion requests: **blobbysupport@gmail.com**
 Project repository: https://github.com/MrTacoGato/blobby-discord-pet-bot
 
 ---

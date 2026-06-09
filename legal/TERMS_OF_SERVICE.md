@@ -67,7 +67,7 @@ These Terms are governed by the laws of **[INSERT YOUR STATE / COUNTRY]**, witho
 
 ## 13. Contact
 
-**[INSERT SUPPORT EMAIL OR DISCORD SUPPORT-SERVER INVITE]**
+**blobbysupport@gmail.com**
 Project repository: https://github.com/MrTacoGato/blobby-discord-pet-bot
 
 ---

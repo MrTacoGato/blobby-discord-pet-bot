@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy — Blobby</title>
+<style>
+:root{--bg:#0f1020;--card:#1a1a30;--ink:#e9e9f2;--muted:#a9a9c2;--accent:#7c6cff;--line:#2a2a44}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#0f1020;color:#e9e9f2;line-height:1.65}
+.wrap{max-width:760px;margin:0 auto;padding:40px 24px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:18px 24px;border-bottom:1px solid #2a2a44;background:#15152b;position:sticky;top:0}
+header.site a{color:#a9a9c2;text-decoration:none;font-weight:600;font-size:14px}
+header.site a:hover{color:#e9e9f2}
+header.site .brand{color:#e9e9f2;font-weight:800;margin-right:auto;font-size:16px}
+h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em}
+h2{font-size:20px;margin:34px 0 10px;letter-spacing:-.01em}
+.meta{color:#a9a9c2;font-size:14px;margin-bottom:8px}
+blockquote{border-left:3px solid #7c6cff;margin:18px 0;padding:10px 16px;background:#17172e;border-radius:8px;color:#cfcfe6}
+a{color:#9d90ff}
+hr{border:none;border-top:1px solid #2a2a44;margin:28px 0}
+ul{padding-left:22px}
+li{margin:6px 0}
+em{color:#a9a9c2}
+footer{margin-top:50px;color:#7d7d99;font-size:13px;border-top:1px solid #2a2a44;padding-top:18px}
+.home-cards{display:grid;gap:16px;grid-template-columns:1fr 1fr;margin-top:28px}
+.home-cards a{display:block;padding:22px;border:1px solid #2a2a44;border-radius:14px;background:#16162c;text-decoration:none;color:#e9e9f2;transition:.15s}
+.home-cards a:hover{border-color:#7c6cff;transform:translateY(-2px)}
+.home-cards h3{margin:0 0 6px;font-size:18px}
+.home-cards p{margin:0;color:#a9a9c2;font-size:14px}
+@media(max-width:560px){.home-cards{grid-template-columns:1fr}}
+</style>
+</head><body>
+<header class="site">
+<span class="brand">🫧 Blobby</span>
+<a href="index.html">Home</a>
+<a href="terms.html">Terms</a>
+<a href="privacy.html" style="color:#e9e9f2">Privacy</a>
+</header>
+<main class="wrap">
+<h1>Privacy Policy — Blobby</h1>
+<p><strong>Effective date:</strong> June 7, 2026
+<strong>Last updated:</strong> June 7, 2026</p>
+<p>This Privacy Policy explains what the Blobby Discord application ("Blobby," "the bot," "we," "us") collects, why, and what choices you have. Blobby is a shared "server pet" bot. By adding Blobby to a server or interacting with it, you agree to this policy.</p>
+<blockquote>
+<p>Plain-language summary: Blobby stores only the minimum needed to run a shared pet — Discord IDs, game counters, streak dates, and timestamps. It reads messages to award passive XP <strong>but does not store the text of your messages</strong>. We don't sell your data and we don't show ads.</p>
+</blockquote>
+<hr />
+<h2>1. What we collect</h2>
+<p>Blobby stores the following, keyed by Discord <strong>server (guild) ID</strong> and <strong>user ID</strong>:</p>
+<ul>
+<li><strong>Identifiers:</strong> your Discord user ID and the server's guild ID. We do <strong>not</strong> store usernames, email addresses, real names, or IP addresses.</li>
+<li><strong>Game state (per server):</strong> the pet's stats, level, species, color, generation, the shared star pool, the shared collection, owned and equipped cosmetics, and coin balances.</li>
+<li><strong>Per-member activity:</strong> your check-in streak and dates, accumulated XP contribution, coin balance, and the timestamps of your last passive-XP grant and last forage.</li>
+<li><strong>Purchase results (if you buy anything):</strong> the cosmetic outcome of a purchase — e.g. a memorial entry, a supporter ("Caretaker") badge, or a gifted unlock — recorded so the perk persists. We store <strong>who</strong> unlocked a perk (your Discord ID) and <strong>what</strong> was unlocked. See §4.</li>
+</ul>
+<h2>2. Message content — read, not stored</h2>
+<p>Blobby uses Discord's <strong>Message Content</strong> intent so that ordinary chatting passively earns the pet XP. When you send a message in a server where Blobby is active, the bot checks timing to apply a rate-limited XP grant. <strong>The text of your messages is never stored, logged, or transmitted anywhere.</strong> Only a timestamp (when XP was last granted to you) and counters are saved.</p>
+<h2>3. Why we collect it</h2>
+<p>Solely to operate the game: to keep one shared pet alive across everyone's care, track the shared collection and economy, maintain streaks, and remember cosmetic unlocks. We do <strong>not</strong> use your data for advertising, profiling, or sale to third parties.</p>
+<h2>4. Purchases and payment data</h2>
+<p>Optional purchases (such as a Caretaker subscription, a Memorial keepsake, or gifting an unlock to your server) are made through <strong>Discord's</strong> in-app purchase system. <strong>Payment is processed entirely by Discord and its payment processors — Blobby never sees or stores your card number, billing address, or other payment details.</strong> Discord notifies the bot that an entitlement exists; we store only the resulting cosmetic record (the perk and the Discord ID it belongs to). Discord's handling of payment data is governed by <a href="https://discord.com/privacy">Discord's Privacy Policy</a>.</p>
+<h2>5. Where data is stored</h2>
+<p>Game data is stored in <strong>Amazon Web Services (AWS) DynamoDB</strong>. Access is restricted to the bot's operator. Data is transmitted over encrypted connections.</p>
+<h2>6. Data sharing</h2>
+<p>We do not sell, rent, or trade your data. We do not share it with third parties except:</p>
+<ul>
+<li><strong>Service providers</strong> strictly necessary to run the bot (AWS for storage; Discord as the platform).</li>
+<li><strong>Legal requirements</strong>, if compelled by valid legal process.</li>
+</ul>
+<h2>7. Retention and deletion</h2>
+<p>Game data persists while Blobby is in your server so the pet and collection survive restarts. You can have data removed:</p>
+<ul>
+<li><strong>Remove the bot</strong> from a server to stop further collection for that server.</li>
+<li><strong>Request deletion</strong> of a server's data, or your personal per-member record, by contacting us (see §10). We will delete it within a reasonable period.</li>
+</ul>
+<p>Note: purchase/entitlement records held by <strong>Discord</strong> are subject to Discord's own retention policy, not ours.</p>
+<h2>8. Children's privacy</h2>
+<p>Blobby is not directed to children under 13 (or the minimum digital-consent age in your country). Use of Discord is subject to Discord's minimum-age requirements. We do not knowingly collect data from anyone below that age; if you believe we have, contact us and we will delete it.</p>
+<h2>9. Changes to this policy</h2>
+<p>We may update this policy as the bot evolves. Material changes will be reflected by updating the "Last updated" date above. Continued use after changes constitutes acceptance.</p>
+<h2>10. Contact</h2>
+<p>Questions or data-deletion requests: <strong>blobbysupport@gmail.com</strong>
+Project repository: https://github.com/MrTacoGato/blobby-discord-pet-bot</p>
+<hr />
+<p><em>Blobby is an independent project and is not affiliated with or endorsed by Discord Inc.</em></p>
+<footer>Blobby is an independent project and is not affiliated with or endorsed by Discord Inc.</footer>
+</main></body></html>
